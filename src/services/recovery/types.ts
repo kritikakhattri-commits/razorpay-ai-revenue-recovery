@@ -12,3 +12,16 @@ export interface RecoveryCase {
   auditEntries: AuditEntry[];
   recoveredAmount: number;
 }
+
+export interface BatchRecoveryResult {
+  cases: RecoveryCase[];
+  totalPayments: number;
+  totalRevenueAtRisk: number;
+  totalRecoveredRevenue: number;
+  recoveryRate: number;
+  recoveredPaymentCount: number;
+  failedRecoveryCount: number;
+  pendingPaymentCount: number;
+  escalatedPaymentCount: number;
+  blockedPaymentCount: number;
+}
