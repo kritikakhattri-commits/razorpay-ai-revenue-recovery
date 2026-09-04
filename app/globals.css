@@ -1,26 +1,190 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Intro animation keyframes ───────────────────────────────────────────────── */
+
+@keyframes il-spin1 {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes il-spin2 {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+@keyframes il-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.25); }
+}
+
+/* ── Dashboard section animations ───────────────────────────────────────────── */
+
+@keyframes section-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes value-appear {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes progress-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes row-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Legacy aliases (existing code refs) ─────────────────────────────────────── */
+
+@keyframes dashboard-section-appear {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dashboard-value-appear {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dashboard-progress-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+/* ── Utility layer ───────────────────────────────────────────────────────────── */
+
+@layer utilities {
+
+  /* Recovery loop SVG animation helpers */
+  .rl-spin1 {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: il-spin1 14s linear infinite;
+  }
+  .rl-spin2 {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: il-spin2 10s linear infinite;
+  }
+  .rl-pulse {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: il-pulse 3.2s ease-in-out infinite;
+  }
+
+  /* Page / section entrance */
+  .section-reveal   { animation: section-reveal 600ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .value-appear     { animation: value-appear 400ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .row-fade-in      { animation: row-fade-in 300ms ease-out both; }
+  .progress-fill-anim {
+    transform-origin: left;
+    animation: progress-fill 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    will-change: transform;
+  }
+
+  /* Legacy animations */
+  .dashboard-section-appear { animation: dashboard-section-appear 220ms ease-out both; }
+  .dashboard-value-enter    { animation: dashboard-value-appear 180ms ease-out both; }
+  .dashboard-progress-fill  {
+    transform-origin: left;
+    animation: dashboard-progress-fill 280ms ease-out both;
+    will-change: transform;
+  }
+
+  /* Hover transitions */
+  .hover-lift {
+    transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+  }
+  .hover-lift:hover  { transform: translateY(-1px); }
+  .hover-lift:active { transform: translateY(0); }
+
+  /* Card hover */
+  .dashboard-card-hover {
+    transition:
+      border-color 180ms ease-out,
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out,
+      transform 180ms ease-out;
+  }
+  .dashboard-card-hover:hover {
+    border-color: rgb(212 212 212);
+    box-shadow: 0 4px 12px rgb(23 23 23 / 0.04);
+    transform: translateY(-1px);
+  }
+  .dashboard-card-hover:active { transform: translateY(0); }
+
+  .dashboard-soft-transition {
+    transition:
+      border-color 180ms ease-out,
+      background-color 180ms ease-out,
+      box-shadow 180ms ease-out,
+      transform 180ms ease-out;
+  }
+  .dashboard-soft-transition:hover {
+    box-shadow: 0 4px 12px rgb(23 23 23 / 0.04);
+    transform: translateY(-1px);
+  }
+  .dashboard-soft-transition:active { transform: translateY(0); }
+
+  .dashboard-status-transition {
+    transition:
+      background-color 180ms ease-out,
+      border-color 180ms ease-out,
+      color 180ms ease-out;
+  }
+
+  /* Arrow link — arrow moves 3px on hover */
+  .arrow-link { display: inline-flex; align-items: center; gap: 6px; }
+  .arrow-link .arrow { transition: transform 150ms ease-out; }
+  .arrow-link:hover .arrow { transform: translateX(3px); }
+
+  /* Table row hover */
+  .trow-hover { transition: background-color 120ms ease-out; }
+  .trow-hover:hover { background-color: rgb(250 250 249); }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    scroll-behavior: auto !important;
+  }
+
+  .rl-spin1, .rl-spin2, .rl-pulse,
+  .section-reveal, .value-appear, .row-fade-in, .progress-fill-anim,
+  .dashboard-section-appear, .dashboard-value-enter, .dashboard-progress-fill {
+    animation: none !important;
+  }
+
+  .dashboard-progress-fill, .progress-fill-anim {
+    transform: none !important;
+    will-change: auto;
+  }
+
+  .dashboard-card-hover,
+  .dashboard-soft-transition,
+  .dashboard-status-transition,
+  .hover-lift {
+    transition-duration: 1ms !important;
+    transform: none !important;
+  }
+
+  .dashboard-card-hover:hover,
+  .dashboard-card-hover:active,
+  .dashboard-soft-transition:hover,
+  .dashboard-soft-transition:active,
+  .hover-lift:hover,
+  .hover-lift:active {
+    transform: none !important;
+  }
 }

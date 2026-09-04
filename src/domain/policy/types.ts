@@ -6,4 +6,6 @@ export interface PolicyDecision {
   reason: string;
   originalRecommendedAction: RecoveryAction;
   policyRulesApplied: string[];
+  approvedRetryAfterMinutes?: number | null;
+  approvedRetryAt?: string | null;
 }

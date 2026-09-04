@@ -179,6 +179,24 @@ describe('evaluatePolicy', () => {
       );
       expect(decision.approved).toBe(true);
     });
+
+    it('still overrides unsafe smart retry timing when enriched delay is too short', () => {
+      const decision = evaluatePolicy(
+        makePayment(),
+        makeRecommendation({ retryAfterMinutes: 15 }),
+        {
+          recommendedRetryAt: '2024-01-15T10:45:05.000Z',
+          delayMinutes: 15,
+          confidence: 'MEDIUM',
+          reason: 'UPI timeout is likely temporary; retry after 15 minutes.',
+          source: 'FAILURE_REASON',
+        },
+      );
+      expect(decision.approved).toBe(false);
+      expect(decision.finalAction).toBe('ESCALATE');
+      expect(decision.policyRulesApplied).toContain('MINIMUM_RETRY_DELAY');
+      expect(decision.approvedRetryAfterMinutes).toBeUndefined();
+    });
   });
 
   describe('RULE 5 — BANK_ERROR_RETRY_DELAY', () => {

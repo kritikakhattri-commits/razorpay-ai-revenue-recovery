@@ -6,10 +6,21 @@ import type { ExecutionStatus, RecoveryExecutionResult } from '../../domain/exec
 import type { AuditStore } from '../../domain/audit/types';
 import type { AuditLogger } from '../audit/auditLogger';
 import type { RecoveryCase } from './types';
+import { calculateRecoveryScore } from '../../domain/recovery/recoveryScore';
+import {
+  computeSmartRetryTiming,
+  type SmartRetryTiming,
+} from '../../domain/recovery/retryTiming';
+import { computePaymentMethodSwitch } from '../../domain/recovery/paymentMethodSwitching';
+import { calculateRevenueAtRisk } from '../../domain/recovery/revenueAtRisk';
 
 export interface RecoveryOrchestratorDeps {
   decisionEngine: (payment: FailedPayment) => RecoveryRecommendation;
-  policyEngine: (payment: FailedPayment, recommendation: RecoveryRecommendation) => PolicyDecision;
+  policyEngine: (
+    payment: FailedPayment,
+    recommendation: RecoveryRecommendation,
+    smartRetryTiming?: SmartRetryTiming | null,
+  ) => PolicyDecision;
   executor: RecoveryActionExecutor;
   auditLogger: AuditLogger;
   auditStore: AuditStore;
@@ -32,11 +43,20 @@ export class RecoveryOrchestrator {
     // B. Generate RecoveryRecommendation
     const recommendation = decisionEngine(payment);
 
+    // B2. Enrich retry recommendations with deterministic smart timing.
+    const smartRetryTiming = computeSmartRetryTiming({ payment, recommendation });
+
+    // B3. Compute deterministic payment method switch recommendation.
+    const paymentMethodSwitch = computePaymentMethodSwitch({ payment });
+    const policyRecommendation: RecoveryRecommendation = smartRetryTiming
+      ? { ...recommendation, retryAfterMinutes: smartRetryTiming.delayMinutes }
+      : recommendation;
+
     // C. Log RECOVERY_RECOMMENDED
-    auditLogger.logRecoveryRecommendation(payment, recommendation);
+    auditLogger.logRecoveryRecommendation(payment, recommendation, smartRetryTiming, paymentMethodSwitch);
 
     // D. Evaluate recommendation with PolicyEngine — never bypassed
-    const policyDecision = policyEngine(payment, recommendation);
+    const policyDecision = policyEngine(payment, policyRecommendation, smartRetryTiming);
 
     // E. Log POLICY_APPROVED or POLICY_REJECTED
     auditLogger.logPolicyDecision(payment, policyDecision);
@@ -69,7 +89,24 @@ export class RecoveryOrchestrator {
     // I. Retrieve the complete audit timeline for this payment
     const auditEntries = [...auditStore.getByPaymentId(payment.paymentId)];
 
-    // J. Return the complete RecoveryCase
+    // J. Calculate the recovery score for analytics and prioritisation (does not affect policy)
+    const recoveryScore = calculateRecoveryScore({
+      amountInPaise: payment.amount,
+      recoveryProbability: recommendation.confidence,
+    });
+
+    // L. Calculate the revenue-at-risk score (analytics only; does not affect policy)
+    const revenueAtRiskScore = calculateRevenueAtRisk({
+      amountInPaise: payment.amount,
+      recoveryProbability: recommendation.confidence,
+      expectedRecoverableAmountInPaise: recoveryScore.expectedRecoverableAmountInPaise,
+      attemptCount: payment.attemptCount,
+      previousSuccessfulPayments: payment.previousSuccessfulPayments,
+      failedAt: payment.failedAt,
+      now: this.clock(),
+    });
+
+    // K. Return the complete RecoveryCase
     return {
       payment,
       recommendation,
@@ -77,6 +114,10 @@ export class RecoveryOrchestrator {
       executionResult,
       auditEntries,
       recoveredAmount: executionResult.recoveredAmount,
+      recoveryScore,
+      smartRetryTiming,
+      paymentMethodSwitch,
+      revenueAtRiskScore,
     };
   }
 }

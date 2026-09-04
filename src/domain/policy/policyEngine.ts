@@ -1,5 +1,6 @@
 import type { FailedPayment } from '../payments/types';
 import type { RecoveryAction, RecoveryRecommendation } from '../recovery/types';
+import type { SmartRetryTiming } from '../recovery/retryTiming';
 import type { PolicyDecision } from './types';
 
 const MIN_CONFIDENCE = 0.60;
@@ -13,8 +14,16 @@ function decide(
   reason: string,
   originalRecommendedAction: RecoveryAction,
   policyRulesApplied: string[],
+  timing?: Pick<PolicyDecision, 'approvedRetryAfterMinutes' | 'approvedRetryAt'>,
 ): PolicyDecision {
-  return { approved, finalAction, reason, originalRecommendedAction, policyRulesApplied };
+  return {
+    approved,
+    finalAction,
+    reason,
+    originalRecommendedAction,
+    policyRulesApplied,
+    ...timing,
+  };
 }
 
 /**
@@ -24,6 +33,7 @@ function decide(
 export function evaluatePolicy(
   payment: FailedPayment,
   recommendation: RecoveryRecommendation,
+  smartRetryTiming?: SmartRetryTiming | null,
 ): PolicyDecision {
   const { recommendedAction, confidence, retryAfterMinutes } = recommendation;
   const { failureReason, attemptCount } = payment;
@@ -118,6 +128,10 @@ export function evaluatePolicy(
       `Retry approved. Confidence ${confidence.toFixed(2)} meets threshold. Retry scheduled after ${retryAfterMinutes} minute(s) with ${attemptCount} prior attempt(s).`,
       recommendedAction,
       rules,
+      {
+        approvedRetryAfterMinutes: retryAfterMinutes,
+        approvedRetryAt: smartRetryTiming?.recommendedRetryAt ?? null,
+      },
     );
   }
 

@@ -300,6 +300,31 @@ describe('SimulatedRecoveryActionExecutor', () => {
       expect(r1.executedAt).toBe(r2.executedAt);
     });
 
+    it('approved retry execution uses the policy-approved retry timestamp', () => {
+      const payment = paymentWithScore(0, 75, { failureReason: 'UPI_TIMEOUT' });
+      const decision = makeDecision({
+        finalAction: 'RETRY_LATER',
+        approvedRetryAfterMinutes: 30,
+        approvedRetryAt: '2025-01-01T10:30:30.000Z',
+      });
+
+      const result = executor.execute(payment, decision);
+
+      expect(result.executedAt).toBe('2025-01-01T10:30:30.000Z');
+    });
+
+    it('approved payment-link execution remains chronological to failedAt', () => {
+      const payment = paymentWithScore(0, 55, {
+        failureReason: 'AUTHENTICATION_FAILED',
+        failedAt: '2025-01-01T10:00:30.000Z',
+      });
+      const decision = makeDecision({ finalAction: 'SEND_PAYMENT_LINK' });
+
+      const result = executor.execute(payment, decision);
+
+      expect(result.executedAt).toBe('2025-01-01T10:15:30.000Z');
+    });
+
     it('different paymentIds can produce different outcomes for the same action', () => {
       const recovered = paymentWithScore(0, 75, { failureReason: 'UPI_TIMEOUT' });
       const failed = paymentWithScore(75, 100, { failureReason: 'UPI_TIMEOUT' });
@@ -349,7 +374,9 @@ describe('SimulatedRecoveryActionExecutor', () => {
       expect(typeof result.recoveredAmount).toBe('number');
       expect(typeof result.message).toBe('string');
       expect(result.paymentId).toBe(payment.paymentId);
-      expect(result.executedAt).toBe(FIXED_CLOCK);
+      expect(new Date(result.executedAt).getTime()).toBeGreaterThanOrEqual(
+        new Date(payment.failedAt).getTime(),
+      );
     });
   });
 });

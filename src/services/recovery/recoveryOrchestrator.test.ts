@@ -123,6 +123,21 @@ describe('Scenario A — successful UPI recovery', () => {
     expect(recoveryCase.policyDecision.finalAction).toBe('RETRY_LATER');
   });
 
+  it('adds smart retry timing to retryable cases', () => {
+    expect(recoveryCase.smartRetryTiming).toEqual({
+      recommendedRetryAt: '2025-06-01T12:30:00.000Z',
+      delayMinutes: 30,
+      confidence: 'MEDIUM',
+      reason: 'UPI timeout is likely temporary; retry after 30 minutes.',
+      source: 'FAILURE_REASON',
+    });
+  });
+
+  it('PolicyEngine approves the smart retry delay for execution', () => {
+    expect(recoveryCase.policyDecision.approvedRetryAfterMinutes).toBe(30);
+    expect(recoveryCase.policyDecision.approvedRetryAt).toBe('2025-06-01T12:30:00.000Z');
+  });
+
   it('execution result is RECOVERED', () => {
     expect(recoveryCase.executionResult.status).toBe('RECOVERED');
   });
@@ -248,6 +263,10 @@ describe('Scenario C — expired card', () => {
     expect(recoveryCase.recommendation.retryAfterMinutes).toBeNull();
   });
 
+  it('does not add smart retry timing for UPDATE_PAYMENT_METHOD', () => {
+    expect(recoveryCase.smartRetryTiming).toBeNull();
+  });
+
   it('policy approves UPDATE_PAYMENT_METHOD', () => {
     expect(recoveryCase.policyDecision.approved).toBe(true);
     expect(recoveryCase.policyDecision.finalAction).toBe('UPDATE_PAYMENT_METHOD');
@@ -310,6 +329,12 @@ describe('Scenario D — retry limit exceeded', () => {
 
   it('policy applies MAX_RETRY_ATTEMPTS rule', () => {
     expect(recoveryCase.policyDecision.policyRulesApplied).toContain('MAX_RETRY_ATTEMPTS');
+  });
+
+  it('computes a conservative timing but policy still blocks max attempts', () => {
+    expect(recoveryCase.smartRetryTiming?.delayMinutes).toBe(150);
+    expect(recoveryCase.smartRetryTiming?.confidence).toBe('LOW');
+    expect(recoveryCase.policyDecision.approvedRetryAfterMinutes).toBeUndefined();
   });
 
   it('policy escalates rather than executing a retry', () => {

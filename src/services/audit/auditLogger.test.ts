@@ -146,6 +146,24 @@ describe('AuditLogger', () => {
       logger.logRecoveryRecommendation(makePayment(), makeRecommendation({ retryAfterMinutes: null }));
       expect(store.getAll()[0].metadata['retryAfterMinutes']).toBeNull();
     });
+
+    it('metadata includes smart retry timing when available', () => {
+      logger.logRecoveryRecommendation(makePayment(), makeRecommendation(), {
+        recommendedRetryAt: '2025-06-01T10:30:00.000Z',
+        delayMinutes: 30,
+        confidence: 'MEDIUM',
+        reason: 'UPI timeout is likely temporary; retry after 30 minutes.',
+        source: 'FAILURE_REASON',
+      });
+
+      expect(store.getAll()[0].metadata['smartRetryTiming']).toEqual({
+        recommendedRetryAt: '2025-06-01T10:30:00.000Z',
+        delayMinutes: 30,
+        confidence: 'MEDIUM',
+        reason: 'UPI timeout is likely temporary; retry after 30 minutes.',
+        source: 'FAILURE_REASON',
+      });
+    });
   });
 
   describe('logPolicyDecision — approved', () => {
@@ -165,6 +183,20 @@ describe('AuditLogger', () => {
       expect(metadata['finalAction']).toBe('RETRY_LATER');
       expect(metadata['originalRecommendedAction']).toBe('RETRY_LATER');
       expect(metadata['policyRulesApplied']).toEqual(['NON_RETRY_RECOVERY_ACTIONS']);
+    });
+
+    it('metadata includes policy-approved retry timing when available', () => {
+      logger.logPolicyDecision(
+        makePayment(),
+        makeApprovedDecision({
+          approvedRetryAfterMinutes: 30,
+          approvedRetryAt: '2025-06-01T10:30:00.000Z',
+        }),
+      );
+
+      const { metadata } = store.getAll()[0];
+      expect(metadata['approvedRetryAfterMinutes']).toBe(30);
+      expect(metadata['approvedRetryAt']).toBe('2025-06-01T10:30:00.000Z');
     });
 
     it('metadata does not include reason for approved decisions', () => {

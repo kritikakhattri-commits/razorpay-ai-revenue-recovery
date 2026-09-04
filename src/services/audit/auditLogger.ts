@@ -1,5 +1,7 @@
 import type { FailedPayment } from '../../domain/payments/types';
 import type { RecoveryRecommendation } from '../../domain/recovery/types';
+import type { SmartRetryTiming } from '../../domain/recovery/retryTiming';
+import type { PaymentMethodSwitchRecommendation } from '../../domain/recovery/paymentMethodSwitching';
 import type { PolicyDecision } from '../../domain/policy/types';
 import type { ExecutionStatus, RecoveryExecutionResult } from '../../domain/executor/types';
 import type { AuditEntry, AuditEventType, AuditStore } from '../../domain/audit/types';
@@ -47,7 +49,12 @@ export class AuditLogger {
     });
   }
 
-  logRecoveryRecommendation(payment: FailedPayment, recommendation: RecoveryRecommendation): void {
+  logRecoveryRecommendation(
+    payment: FailedPayment,
+    recommendation: RecoveryRecommendation,
+    smartRetryTiming?: SmartRetryTiming | null,
+    paymentMethodSwitch?: PaymentMethodSwitchRecommendation | null,
+  ): void {
     this.append({
       paymentId: payment.paymentId,
       eventType: 'RECOVERY_RECOMMENDED',
@@ -57,6 +64,24 @@ export class AuditLogger {
         confidence: recommendation.confidence,
         retryAfterMinutes: recommendation.retryAfterMinutes,
         maxAttempts: recommendation.maxAttempts,
+        smartRetryTiming: smartRetryTiming
+          ? {
+              recommendedRetryAt: smartRetryTiming.recommendedRetryAt,
+              delayMinutes: smartRetryTiming.delayMinutes,
+              confidence: smartRetryTiming.confidence,
+              reason: smartRetryTiming.reason,
+              source: smartRetryTiming.source,
+            }
+          : null,
+        paymentMethodSwitch: paymentMethodSwitch
+          ? {
+              currentMethod: paymentMethodSwitch.currentMethod,
+              shouldSwitch: paymentMethodSwitch.shouldSwitch,
+              recommendedMethod: paymentMethodSwitch.recommendedMethod,
+              alternativeCount: paymentMethodSwitch.alternatives.length,
+              reason: paymentMethodSwitch.reason,
+            }
+          : null,
       },
     });
   }
@@ -73,6 +98,8 @@ export class AuditLogger {
         finalAction: decision.finalAction,
         originalRecommendedAction: decision.originalRecommendedAction,
         policyRulesApplied: decision.policyRulesApplied,
+        approvedRetryAfterMinutes: decision.approvedRetryAfterMinutes ?? null,
+        approvedRetryAt: decision.approvedRetryAt ?? null,
         ...(approved ? {} : { reason: decision.reason }),
       },
     });

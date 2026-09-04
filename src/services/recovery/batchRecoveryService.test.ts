@@ -6,6 +6,9 @@ import type { PolicyDecision } from '../../domain/policy/types';
 import type { AuditEntry } from '../../domain/audit/types';
 import type { RecoveryExecutionResult, ExecutionStatus } from '../../domain/executor/types';
 import { BatchRecoveryService, type RecoveryProcessor } from './batchRecoveryService';
+import { calculateRecoveryScore } from '../../domain/recovery/recoveryScore';
+import { computePaymentMethodSwitch } from '../../domain/recovery/paymentMethodSwitching';
+import { calculateRevenueAtRisk } from '../../domain/recovery/revenueAtRisk';
 
 const FIXED_TIMESTAMP = '2025-06-01T12:00:00.000Z';
 
@@ -84,13 +87,32 @@ function makeExecutionResult(
 
 function makeCase(payment: FailedPayment, status: ExecutionStatus, recoveredAmount: number): RecoveryCase {
   const approved = status !== 'ESCALATED' && status !== 'BLOCKED';
+  const recommendation = makeRecommendation();
   return {
     payment,
-    recommendation: makeRecommendation(),
+    recommendation,
     policyDecision: makePolicyDecision(approved),
     executionResult: makeExecutionResult(payment.paymentId, status, recoveredAmount),
     auditEntries: [makeAuditEntry(payment.paymentId)],
     recoveredAmount,
+    recoveryScore: calculateRecoveryScore({
+      amountInPaise: payment.amount,
+      recoveryProbability: recommendation.confidence,
+    }),
+    smartRetryTiming: null,
+    paymentMethodSwitch: computePaymentMethodSwitch({ payment }),
+    revenueAtRiskScore: calculateRevenueAtRisk({
+      amountInPaise: payment.amount,
+      recoveryProbability: recommendation.confidence,
+      expectedRecoverableAmountInPaise: calculateRecoveryScore({
+        amountInPaise: payment.amount,
+        recoveryProbability: recommendation.confidence,
+      }).expectedRecoverableAmountInPaise,
+      attemptCount: payment.attemptCount,
+      previousSuccessfulPayments: payment.previousSuccessfulPayments,
+      failedAt: payment.failedAt,
+      now: FIXED_TIMESTAMP,
+    }),
   };
 }
 

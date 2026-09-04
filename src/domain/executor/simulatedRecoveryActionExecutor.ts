@@ -40,6 +40,23 @@ const PAYMENT_LINK_RECOVERY_THRESHOLD: Record<FailureReason, number> = {
 
 type SimulationOutcome = { status: ExecutionStatus; message: string };
 
+function addMinutes(timestamp: string, minutes: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return new Date().toISOString();
+  return new Date(date.getTime() + minutes * 60_000).toISOString();
+}
+
+function executionTimestamp(payment: FailedPayment, decision: PolicyDecision, fallback: () => string): string {
+  if (!decision.approved) return fallback();
+  if (decision.finalAction === 'RETRY_LATER') {
+    return decision.approvedRetryAt ?? addMinutes(payment.failedAt, decision.approvedRetryAfterMinutes ?? 60);
+  }
+  if (decision.finalAction === 'SEND_PAYMENT_LINK') return addMinutes(payment.failedAt, 15);
+  if (decision.finalAction === 'UPDATE_PAYMENT_METHOD') return addMinutes(payment.failedAt, 5);
+  if (decision.finalAction === 'ESCALATE') return addMinutes(payment.failedAt, 5);
+  return fallback();
+}
+
 function simulateRetry(payment: FailedPayment): SimulationOutcome {
   const score = computeSimulationScore(payment);
   if (score < RETRY_RECOVERY_THRESHOLD[payment.failureReason]) {
@@ -73,7 +90,7 @@ export class SimulatedRecoveryActionExecutor implements RecoveryActionExecutor {
   constructor(private readonly clock: () => string = () => new Date().toISOString()) {}
 
   execute(payment: FailedPayment, decision: PolicyDecision): RecoveryExecutionResult {
-    const executedAt = this.clock();
+    const executedAt = executionTimestamp(payment, decision, this.clock);
 
     if (!decision.approved) {
       const status: ExecutionStatus =
